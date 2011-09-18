@@ -1,0 +1,4 @@
+2011-09-18 Mark Goodall <markit@seken.co.uk>
+	* Added build structure
+	* Empty firmware compiles(untested)
+	* Added cli application
