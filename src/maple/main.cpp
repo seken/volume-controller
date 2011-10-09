@@ -11,7 +11,7 @@ __attribute__((constructor)) void premain() {
 
 class Potentiometer {
 	public:
-		Potentiometer(HardwareSPI *port, unsigned int &count = 6);
+		Potentiometer(HardwareSPI *port, const unsigned int &pin, unsigned int &count = 6);
 
 		void setA(const char &value, unsigned int &chip = 0);
 		void setB(const char &value, unsigned int &chip = 0);
@@ -21,25 +21,28 @@ class Potentiometer {
 	private:
 		HardwareSPI *m_spi;
 		const unsigned int m_count;
+		const unsigned int m_pin;
 		const static unsigned char CHANGE_ENABLED;
 		const static unsigned char CHANGE_DISABLED;
 };
 
-Potentiometer::CHANGE_ENABLED = 0x00;
+Potentiometer::CHANGE_ENABLED = 0x3F;
 Potentiometer::CHANGE_DISABLED = 0xC0;
 
 Potentiometer::Potentiometer(HardwareSPI *port) :
 		m_spi(port),
-		m_count(6) {}
+		m_count(6),
+		m_pin(pin) {}
 
 void Potentiometer::setA(const char &value, unsigned int &chip) {
 	unsigned char buf[m_count];
 	for (unsigned int i = 0; i < m_count; ++i) {
 		if ((i/6) == chip && i%6 < 3) {
-			buf[i] = value | CHANGE_ENABLED;
+			buf[i] = value & CHANGE_ENABLED;
 		} else {
 			buf[i] = CHANGE_DISABLED;
 		}
+	}
 	setAll(buf);
 }
 
@@ -47,10 +50,11 @@ void Potentiometer::setB(const char &value, unsigned int &chip) {
 	unsigned char buf[m_count];
 	for (unsigned int i = 0; i < m_count; ++i) {
 		if ((i/6) == chip && i%6 >= 3) {
-			buf[i] = value | CHANGE_ENABLED;
+			buf[i] = value & CHANGE_ENABLED;
 		} else {
 			buf[i] = CHANGE_DISABLED;
 		}
+	}
 	setAll(buf);
 }
 
@@ -58,7 +62,7 @@ void Potentiometer::set(const char &num, const char &value) {
 	unsigned char buf[m_count];
 	for (unsigned int i = 0; i < m_count; ++i) {
 		if (num == i) {
-			buf[i] = value | CHANGE_ENABLED;
+			buf[i] = value & CHANGE_ENABLED;
 		} else {
 			buf[i] = CHANGE_DISABLED;
 		}
@@ -67,12 +71,33 @@ void Potentiometer::set(const char &num, const char &value) {
 }
 
 void Potentiometer::setAll(const char *values) {
+	digitalWrite(m_pin, HIGH);
+	delay(1);
 	m_spi->write(buf, m_count);
+	delay(1);
+	digitalWrite(m_pin, LOW);
+	delay(2);
+	digitalWrite(m_pin, HIGH);
+}
+
+inline void power_on() {
+	digitalWrite(15, HIGH);
+}
+
+inline void power_off() {
+	digitalWrite(15, LOW);
 }
 
 int main(void) {
-    /* Set up the LED to blink  */
-    pinMode(BOARD_LED_PIN, OUTPUT);
+	/* Setup the power pin */
+	pinMode(15, OUTPUT);
+	
+	/* Setup the potentiometer comms */
+	pinMode(9, OUTPUT);
+	digitalWrite(9, HIGH);	
+	HardwareSPI spi(1);
+	Potentiometer pots(&spi, 9);
+	spi.begin(SPI_1_125MHZ, LSBFIRST, SPI_MODE_0);
 
     /* Send a message out USART2  */
     Serial2.begin(9600);
@@ -82,8 +107,10 @@ int main(void) {
     SerialUSB.println("Hello!");
 
     while (true) {
-		toggleLED();
-		delay(100);
+		power_on();
+		delay(3000);
+		power_off();
+		delay(3000);
     }
 
     return 0;
