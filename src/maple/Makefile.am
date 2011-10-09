@@ -58,4 +58,3 @@ firmware.jtag.bin: firmware.jtag
 
 firmware.ram.bin: firmware.ram
 	$(OBJCOPY) -Obinary $< $@
-

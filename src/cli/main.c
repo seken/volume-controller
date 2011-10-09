@@ -94,10 +94,10 @@ int main(int argc, char **argv) {
 	int result = -1;
 
 	if (watch_dog) {
-		const char message[] = "watchdog\n";
+		const char message[] = "w\n";
 		result = write(dev_handle, &message, strlen(message));
 	} else if (volume_set) {
-		const char message[] = "volume %d\n";
+		const char message[] = "v %d\n";
 		result = write(dev_handle, &message, strlen(message));
 	}
 

@@ -11,6 +11,10 @@ Hardware
 An opto-isolator and a digital potentiometer can be used to modify
 the manual controls for a set of speakers.
 
+In my implementation the speakers being controlled are Creative
+Inspire T6100 and the maple is connected via XBee to the pc over a
+mesh network, so that more devices can be added.
+
 Software
 ---------
 

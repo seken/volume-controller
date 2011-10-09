@@ -11,12 +11,12 @@ __attribute__((constructor)) void premain() {
 
 class Potentiometer {
 	public:
-		Potentiometer(HardwareSPI *port, const unsigned int &pin, unsigned int &count = 6);
+		Potentiometer(HardwareSPI *port, const unsigned int &pin, const unsigned int &count = 6);
 
-		void setA(const char &value, unsigned int &chip = 0);
-		void setB(const char &value, unsigned int &chip = 0);
+		void setA(const char &value, const unsigned int &chip = 0);
+		void setB(const char &value, const unsigned int &chip = 0);
 		void set(const char &num, const char &value);
-		void setAll(const char *values);
+		void setAll(const unsigned char *values);
 
 	private:
 		HardwareSPI *m_spi;
@@ -26,15 +26,15 @@ class Potentiometer {
 		const static unsigned char CHANGE_DISABLED;
 };
 
-Potentiometer::CHANGE_ENABLED = 0x3F;
-Potentiometer::CHANGE_DISABLED = 0xC0;
+const unsigned char Potentiometer::CHANGE_ENABLED = 0x3F;
+const unsigned char Potentiometer::CHANGE_DISABLED = 0xC0;
 
-Potentiometer::Potentiometer(HardwareSPI *port) :
+Potentiometer::Potentiometer(HardwareSPI *port, const unsigned int &pin, const unsigned int &count) :
 		m_spi(port),
 		m_count(6),
 		m_pin(pin) {}
 
-void Potentiometer::setA(const char &value, unsigned int &chip) {
+void Potentiometer::setA(const char &value, const unsigned int &chip) {
 	unsigned char buf[m_count];
 	for (unsigned int i = 0; i < m_count; ++i) {
 		if ((i/6) == chip && i%6 < 3) {
@@ -46,7 +46,7 @@ void Potentiometer::setA(const char &value, unsigned int &chip) {
 	setAll(buf);
 }
 
-void Potentiometer::setB(const char &value, unsigned int &chip) {
+void Potentiometer::setB(const char &value, const unsigned int &chip) {
 	unsigned char buf[m_count];
 	for (unsigned int i = 0; i < m_count; ++i) {
 		if ((i/6) == chip && i%6 >= 3) {
@@ -70,10 +70,10 @@ void Potentiometer::set(const char &num, const char &value) {
 	setAll(buf);
 }
 
-void Potentiometer::setAll(const char *values) {
+void Potentiometer::setAll(const unsigned char *values) {
 	digitalWrite(m_pin, HIGH);
 	delay(1);
-	m_spi->write(buf, m_count);
+	m_spi->write(values, m_count);
 	delay(1);
 	digitalWrite(m_pin, LOW);
 	delay(2);
@@ -88,6 +88,50 @@ inline void power_off() {
 	digitalWrite(15, LOW);
 }
 
+unsigned int last_update_time = 0;
+
+void handler_timeout() {
+	if (millis() - last_update_time > 60000) {
+		Serial2.println("Watchdog timeout");
+		SerialUSB.println("S:Watchdog timeout");
+		power_off();
+		last_update_time = millis() - 60000;
+	} else {
+		SerialUSB.println("Watchdog passed!");
+	}
+}
+
+inline bool isdigit(const unsigned char &val) {
+	return (val >= '0' && val <= '9');
+}
+
+int read_command() {
+	bool vol_valid = false;
+	int vol = -2;
+	unsigned char character;
+
+	while ( (character = Serial2.read()) != '\n') {
+		if (!vol_valid) {
+			if (character == 'w') {
+				vol = -1;
+				break;
+
+			} else if (character == 'v') {
+				vol_valid = true;
+
+			} else {
+				break;
+			}
+		} else {
+			if (isdigit(character)) {
+				vol = vol*10 + character-'0';
+			}
+		}
+	}
+
+	return vol;
+}
+
 int main(void) {
 	/* Setup the power pin */
 	pinMode(15, OUTPUT);
@@ -98,19 +142,39 @@ int main(void) {
 	HardwareSPI spi(1);
 	Potentiometer pots(&spi, 9);
 	spi.begin(SPI_1_125MHZ, LSBFIRST, SPI_MODE_0);
+	
+	/* Setup the watchdog countdown */
+	HardwareTimer timer(2);
+	timer.pause();
+	timer.setPeriod(1000000);
+	/* TODO update to newest api */
+	timer.setChannel1Mode(TIMER_OUTPUT_COMPARE);
+	timer.setCompare(TIMER_CH1, 1);
+	timer.attachCompare1Interrupt(handler_timeout);
+	timer.refresh();
+	timer.resume();
 
     /* Send a message out USART2  */
-    Serial2.begin(9600);
-    Serial2.println("Hello world!");
+    Serial2.begin(57600);
+    Serial2.println("Volume Controller starting...");
 
     /* Send a message out the usb virtual serial port  */
-    SerialUSB.println("Hello!");
+    SerialUSB.println("S:Volume Controller starting...");
 
     while (true) {
-		power_on();
-		delay(3000);
-		power_off();
-		delay(3000);
+		if (Serial2.available() > 0) {
+			int vol = read_command();
+			SerialUSB.print("Read command as: ");
+			SerialUSB.println(vol);
+			if (vol == -1) {
+				power_on();
+				last_update_time = millis();
+			} else if (vol >= 0) {
+				power_on();
+				if (vol > 64) vol = 64;
+				pots.setA(vol);
+			}
+		}
     }
 
     return 0;
