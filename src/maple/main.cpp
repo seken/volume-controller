@@ -96,11 +96,8 @@ void handler_timeout() {
 
 	if (millis() - last_update_time > 60000) {
 		Serial2.println("Watchdog timeout");
-		SerialUSB.println("S:Watchdog timeout");
 		power_off();
 		last_update_time = millis() - 60000;
-	} else {
-		SerialUSB.println("Watchdog passed!");
 	}
 }
 
@@ -177,14 +174,9 @@ int main(void) {
     Serial2.begin(57600);
     Serial2.println("Volume Controller starting...");
 
-    /* Send a message out the usb virtual serial port  */
-    SerialUSB.println("S:Volume Controller starting...");
-
     while (true) {
 		if (Serial2.available() > 0) {
 			int vol = read_command();
-			SerialUSB.print("Read command as: ");
-			SerialUSB.println(vol);
 			Serial2.print("Read command as: ");
 			Serial2.println(vol);
 			if (vol == -1) {
