@@ -88,9 +88,12 @@ inline void power_off() {
 	digitalWrite(15, LOW);
 }
 
-unsigned int last_update_time = 0;
+unsigned int last_update_time;
+bool watchdog_enable;
 
 void handler_timeout() {
+	if (!watchdog_enable) return;
+
 	if (millis() - last_update_time > 60000) {
 		Serial2.println("Watchdog timeout");
 		SerialUSB.println("S:Watchdog timeout");
@@ -107,17 +110,28 @@ inline bool isdigit(const unsigned char &val) {
 
 int read_command() {
 	bool vol_valid = false;
-	int vol = -2;
+	int vol = -10;
 	unsigned char character;
 
 	while ( (character = Serial2.read()) != '\n') {
+		Serial2.print((char) character);
 		if (!vol_valid) {
 			if (character == 'w') {
 				vol = -1;
 				break;
 
+			} else if (character == 'i') {
+				watchdog_enable = true;
+				break;
+
+			} else if (character == 'o') {
+				watchdog_enable = false;
+				power_on();
+				break;
+
 			} else if (character == 'v') {
 				vol_valid = true;
+				vol = 0;
 
 			} else {
 				break;
@@ -127,12 +141,17 @@ int read_command() {
 				vol = vol*10 + character-'0';
 			}
 		}
+
+		while(Serial2.available() <= 0);
 	}
 
 	return vol;
 }
 
 int main(void) {
+	last_update_time = 0;
+	watchdog_enable = true;
+
 	/* Setup the power pin */
 	pinMode(15, OUTPUT);
 	
@@ -166,13 +185,16 @@ int main(void) {
 			int vol = read_command();
 			SerialUSB.print("Read command as: ");
 			SerialUSB.println(vol);
+			Serial2.print("Read command as: ");
+			Serial2.println(vol);
 			if (vol == -1) {
 				power_on();
 				last_update_time = millis();
 			} else if (vol >= 0) {
 				power_on();
-				if (vol > 64) vol = 64;
+				if (vol > 63) vol = 63;
 				pots.setA(vol);
+				last_update_time = millis();
 			}
 		}
     }
