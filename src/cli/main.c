@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
+#include <termios.h>
 
 static struct option long_options[] = {
 	{"help", no_argument, 0, 'h'},
@@ -25,7 +26,7 @@ void usage() {
 	fprintf(stderr, "  --help               This message\n");
 	fprintf(stderr, "  -d, --device=NAME    The device name to communicate with\n");
 	fprintf(stderr, "  -w, --watchdog       Keep the device on (default)\n");
-	fprintf(stderr, "  -v, --volume=NUM     Set the volume level (in percent)\n");
+	fprintf(stderr, "  -v, --volume=NUM     Set the volume level (0-63)\n");
 	fprintf(stderr, "  -o, --off            Turn the device off\n");
 	exit(-2);
 }
@@ -90,6 +91,12 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "Unable to connect to device: %s\n", device_name);
 		exit(-1);
 	}
+
+	struct termios options;
+	tcgetattr(dev_handle, &options);
+	cfsetispeed(&options, B57600);
+	cfsetospeed(&options, B57600);
+	tcsetattr(dev_handle, TCSANOW, &options);
 	
 	int result = -1;
 
@@ -97,18 +104,13 @@ int main(int argc, char **argv) {
 		const char message[] = "w\n";
 		result = write(dev_handle, &message, strlen(message));
 	} else if (volume_set) {
-		const char message[] = "v %d\n";
+		const char message[512] = {0};
+		sprintf(message, "v%d\n", volume);
 		result = write(dev_handle, &message, strlen(message));
 	}
 
 	if (result < 0) {
 		fprintf(stderr, "Unable to send signal.\n");
-		exit(-1);
-	}
-
-	char buf[4];
-	if (read(dev_handle, &buf, 4) != 4) {
-		fprintf(stderr, "Device returned error\n");
 		exit(-1);
 	}
 
